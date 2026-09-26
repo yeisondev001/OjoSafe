@@ -1,4 +1,4 @@
-"""SafeVision - Deteccion de EPP (casco, chaleco) con vision por computadora."""
+"""OjoSafe - Deteccion de EPP (casco, chaleco) con vision por computadora."""
 
 import argparse
 import os
@@ -46,7 +46,7 @@ def draw_label(frame, text, x, y, color):
 def draw_hud(frame, ok_count, violations, fps):
     color = GREEN if violations == 0 else RED
     cv2.rectangle(frame, (0, 0), (frame.shape[1], 34), (30, 30, 30), -1)
-    cv2.putText(frame, f"SafeVision  |  FPS: {fps:.1f}", (10, 24),
+    cv2.putText(frame, f"OjoSafe  |  FPS: {fps:.1f}", (10, 24),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, WHITE, 2)
     text = f"OK: {ok_count}  Infracciones: {violations}"
     (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
@@ -137,12 +137,12 @@ def run(source, conf_threshold, save_interval):
     last_violation_time = 0.0
     can_alert = True  # 1 alerta por episodio de infraccion
 
-    print("[SafeVision] Corriendo. Presiona 'q' para salir.")
+    print("[OjoSafe] Corriendo. Presiona 'q' para salir.")
 
     while True:
         ok, frame = cap.read()
         if not ok:
-            print("[SafeVision] Fin del video/fuente.")
+            print("[OjoSafe] Fin del video/fuente.")
             break
 
         frame_idx += 1
@@ -170,13 +170,13 @@ def run(source, conf_threshold, save_interval):
             )
             path = save_violation(frame, detail)
             log_violation(detail, path, source)
-            send_alert(path, f"⚠️ SafeVision — Infracción detectada: {detail}")
+            send_alert(path, f"⚠️ OjoSafe — Infracción detectada: {detail}")
             can_alert = False
         fps = 0.9 * fps + 0.1 * (1.0 / max(now - prev_time, 1e-6))
         prev_time = now
 
         draw_hud(frame, ok_count, viol_count, fps)
-        cv2.imshow("SafeVision - Deteccion de EPP", frame)
+        cv2.imshow("OjoSafe - Deteccion de EPP", frame)
 
         if cv2.waitKey(1 if source_is_camera else 30) & 0xFF == ord("q"):
             break
@@ -186,7 +186,7 @@ def run(source, conf_threshold, save_interval):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SafeVision - Deteccion de EPP")
+    parser = argparse.ArgumentParser(description="OjoSafe - Deteccion de EPP")
     parser.add_argument("--source", default="0",
                         help="0/1 webcam, ruta de video, o URL RTSP")
     parser.add_argument("--conf", type=float, default=0.3,

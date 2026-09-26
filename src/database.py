@@ -1,10 +1,10 @@
-"""Registro de infracciones de SafeVision en SQLite."""
+"""Registro de infracciones de OjoSafe en SQLite."""
 
 import os
 import sqlite3
 from datetime import datetime
 
-DB_PATH = os.path.join("data", "safevision.db")
+DB_PATH = os.path.join("data", "ojosafe.db")
 
 
 def _connect():

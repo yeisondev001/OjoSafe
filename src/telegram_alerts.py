@@ -1,4 +1,4 @@
-"""Alertas de SafeVision via Telegram (sin dependencias externas)."""
+"""Alertas de OjoSafe via Telegram (sin dependencias externas)."""
 
 import os
 import urllib.parse
@@ -47,7 +47,7 @@ def send_photo(path, caption=""):
     if not token or not chat_id:
         return False
 
-    boundary = "----SafeVisionBoundary"
+    boundary = "----OjoSafeBoundary"
     file_bytes = open(path, "rb").read()
 
     parts = []
@@ -77,7 +77,7 @@ def send_photo(path, caption=""):
 
 
 def alert(violation_path, detail, frame=None):
-    caption = f"⚠️ SafeVision: {detail}\n{violation_path}"
+    caption = f"⚠️ OjoSafe: {detail}\n{violation_path}"
     ok = send_photo(violation_path, caption)
     if not ok:
         send_message(caption)

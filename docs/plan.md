@@ -1,4 +1,4 @@
-# Documentación SafeVision
+# Documentación OjoSafe
 
 ## Objetivo
 Detectar el uso correcto de EPP en la fábrica mediante visión por computadora.

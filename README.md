@@ -1,4 +1,4 @@
-# SafeVision 🦺
+# OjoSafe 👁️
 
 Sistema de visión por computadora para seguridad industrial: detecta si los trabajadores usan su **EPP** (Equipo de Protección Personal): casco, chaleco, etc.
 
@@ -40,7 +40,7 @@ Controles: **`q`** para salir.
 ## Estructura
 
 ```
-SafeVision/
+OjoSafe/
 ├── src/main.py    # App de deteccion
 ├── models/        # Modelos YOLO (.pt)
 ├── data/          # Videos de prueba
