@@ -6,3 +6,5 @@ models/*.pt
 data/
 runs/
 .env
+violations/
+violations_test.jpg
