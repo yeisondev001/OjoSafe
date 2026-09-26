@@ -22,6 +22,8 @@ WHITE = (255, 255, 255)
 VIOLATION_CLASSES = {"NO-Hardhat", "NO-Safety Vest"}
 OK_CLASSES = {"Hardhat", "Safety Vest"}
 PERSON_CLASSES = {"Person"}
+# Clases que se ignoran por completo (no se dibujan ni alertan)
+IGNORE_CLASSES = {"Mask", "NO-Mask", "Safety Cone", "machinery", "vehicle"}
 
 # Confianza minima para que una infraccion dispare alerta/captura
 ALERT_CONF = 0.45
@@ -72,6 +74,8 @@ def annotate_boxes(frame, results, model_names):
         for box in results.boxes:
             cls_name = model_names[int(box.cls)]
             conf = float(box.conf)
+            if cls_name in IGNORE_CLASSES:
+                continue
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             if (x2 - x1) * (y2 - y1) < min_area:
                 continue
@@ -107,6 +111,8 @@ def run(source, conf_threshold, save_interval):
 
     if source.isdigit():
         cap = cv2.VideoCapture(int(source))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     else:
         cap = cv2.VideoCapture(source)
 
@@ -122,7 +128,7 @@ def run(source, conf_threshold, save_interval):
     is_video_file = not source_is_camera and not str(source).lower().startswith("rtsp")
     fps = 0.0
     prev_time = time.time()
-    frame_skip = 2 if is_video_file else 1  # en videos procesar 1 de cada 2 frames (CPU)
+    frame_skip = 2  # procesar 1 de cada 2 frames (CPU sin GPU)
     frame_idx = 0
     last_results = None
     violation_streak = 0
@@ -139,7 +145,7 @@ def run(source, conf_threshold, save_interval):
 
         frame_idx += 1
         if frame_idx % frame_skip == 0:
-            last_results = model(frame, conf=conf_threshold, verbose=False)[0]
+            last_results = model(frame, conf=conf_threshold, imgsz=480, verbose=False)[0]
         results = last_results if last_results is not None else model(frame, conf=conf_threshold, verbose=False)[0]
         ok_count, viol_count, persons = annotate_boxes(frame, results, names)
 
