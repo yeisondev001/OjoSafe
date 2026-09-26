@@ -20,6 +20,15 @@ python -m venv venv
 
 Controles: **`q`** para salir.
 
+### Alertas por Telegram
+
+1. Crea tu bot con [@BotFather](https://t.me/BotFather) (`/newbot`) y copia `.env.example` a `.env` con tu `TELEGRAM_TOKEN` y `TELEGRAM_CHAT_ID`.
+2. Pon el nombre y la descripcion de OjoSafe al bot (una sola vez):
+
+```powershell
+.\venv\Scripts\python.exe tests\telegram_bot_perfil.py
+```
+
 ## Que detecta
 
 | Color | Clase | Significado |
