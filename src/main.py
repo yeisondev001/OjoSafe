@@ -9,6 +9,7 @@ import cv2
 from ultralytics import YOLO
 
 from telegram_alerts import alert as send_alert
+from database import log_violation
 
 MODEL_PATH = os.path.join("models", "ppe_yolov8n.pt")
 VIOLATIONS_DIR = "violations"
@@ -151,6 +152,7 @@ def run(source, conf_threshold, save_interval):
                 if names[int(b.cls)] in VIOLATION_CLASSES and float(b.conf) >= ALERT_CONF
             )
             path = save_violation(frame, detail)
+            log_violation(detail, path, source)
             send_alert(path, f"⚠️ SafeVision — Infracción detectada: {detail}")
             last_save = time.time()
 
