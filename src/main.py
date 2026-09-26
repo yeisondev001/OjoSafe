@@ -120,13 +120,14 @@ def run(source, conf_threshold, save_interval):
 
     source_is_camera = source.isdigit()
     is_video_file = not source_is_camera and not str(source).lower().startswith("rtsp")
-    last_save = 0.0
     fps = 0.0
     prev_time = time.time()
     frame_skip = 2 if is_video_file else 1  # en videos procesar 1 de cada 2 frames (CPU)
     frame_idx = 0
     last_results = None
     violation_streak = 0
+    last_violation_time = 0.0
+    can_alert = True  # 1 alerta por episodio de infraccion
 
     print("[SafeVision] Corriendo. Presiona 'q' para salir.")
 
@@ -143,9 +144,17 @@ def run(source, conf_threshold, save_interval):
         ok_count, viol_count, persons = annotate_boxes(frame, results, names)
 
         # La infraccion debe persistir varios frames para alertar
-        violation_streak = violation_streak + 1 if viol_count > 0 else 0
+        now = time.time()
+        if viol_count > 0:
+            violation_streak += 1
+            last_violation_time = now
+        else:
+            violation_streak = 0
+            # El episodio termina cuando estuvo limpio un tiempo prolongado
+            if now - last_violation_time > save_interval:
+                can_alert = True
 
-        if viol_count > 0 and violation_streak >= PERSISTENCE and time.time() - last_save > save_interval:
+        if viol_count > 0 and violation_streak >= PERSISTENCE and can_alert:
             detail = ", ".join(
                 f"{names[int(b.cls)]} {float(b.conf):.0%}"
                 for b in results.boxes
@@ -154,9 +163,7 @@ def run(source, conf_threshold, save_interval):
             path = save_violation(frame, detail)
             log_violation(detail, path, source)
             send_alert(path, f"⚠️ SafeVision — Infracción detectada: {detail}")
-            last_save = time.time()
-
-        now = time.time()
+            can_alert = False
         fps = 0.9 * fps + 0.1 * (1.0 / max(now - prev_time, 1e-6))
         prev_time = now
 
