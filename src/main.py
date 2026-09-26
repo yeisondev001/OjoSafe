@@ -11,7 +11,8 @@ from ultralytics import YOLO
 from telegram_alerts import alert as send_alert
 from database import log_violation
 
-MODEL_PATH = os.path.join("models", "ppe_yolov8n.pt")
+MODEL_PATH = os.path.join("models", "ppe_yolov8n.onnx")  # ONNX: ~50% mas rapido en CPU
+MODEL_FALLBACK = os.path.join("models", "ppe_yolov8n.pt")
 VIOLATIONS_DIR = "violations"
 
 GREEN = (0, 200, 0)
@@ -103,10 +104,11 @@ def annotate_boxes(frame, results, model_names):
 
 
 def run(source, conf_threshold, save_interval):
-    if not os.path.exists(MODEL_PATH):
-        raise SystemExit(f"No se encontro el modelo en {MODEL_PATH}")
+    model_path = MODEL_PATH if os.path.exists(MODEL_PATH) else MODEL_FALLBACK
+    if not os.path.exists(model_path):
+        raise SystemExit(f"No se encontro el modelo en {MODEL_PATH} ni {MODEL_FALLBACK}")
 
-    model = YOLO(MODEL_PATH)
+    model = YOLO(model_path)
     names = model.names
 
     if source.isdigit():
