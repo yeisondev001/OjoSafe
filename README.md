@@ -1,52 +1,59 @@
 # SafeVision 🦺
 
-Sistema de visión por computadora para seguridad industrial: detecta si los trabajadores usan su **EPP** (Equipo de Protección Personal): casco, chaleco, gafas, guantes, etc.
+Sistema de visión por computadora para seguridad industrial: detecta si los trabajadores usan su **EPP** (Equipo de Protección Personal): casco, chaleco, etc.
 
-## Descripción
+## Demo (MVP)
 
-SafeVision analiza video en tiempo real (o imágenes) de cámaras en la fábrica y detecta:
-- ✅ Trabajadores con casco
-- ✅ Trabajadores con chaleco reflectante
-- ⚠️ Trabajadores **sin** EPP → genera alerta
+```powershell
+# 1. Crear entorno virtual (solo la primera vez)
+python -m venv venv
+.\venv\Scripts\pip.exe install -r requirements.txt
 
-## Tecnologías
+# 2. Descargar el modelo PPE (solo la primera vez)
+# https://huggingface.co/Hansung-Cho/yolov8-ppe-detection (best.pt -> models/ppe_yolov8n.pt)
 
-- Python 3.10+
-- OpenCV (captura de video)
-- YOLOv8 / YOLOv11 (detección de objetos)
-- Ultralytics (entrenamiento e inferencia)
+# 3. Ejecutar
+.\venv\Scripts\python.exe src\main.py --source 0          # webcam
+.\venv\Scripts\python.exe src\main.py --source video.mp4  # video de fabrica
+.\venv\Scripts\python.exe src\main.py --source rtsp://usuario:pass@ip/stream  # camara IP (Fase 2)
+```
 
-## Estructura del proyecto
+Controles: **`q`** para salir.
+
+## Que detecta
+
+| Color | Clase | Significado |
+|-------|-------|-------------|
+| 🟠 | Person | Persona detectada |
+| 🟢 | Hardhat / Safety Vest | EPP correcto |
+| 🔴 | NO-Hardhat / NO-Safety Vest | **Infraccion** -> alerta + captura |
+
+- HUD con FPS y contadores OK / infracciones
+- Guarda capturas automaticas en `violations/` (una cada 5s por defecto, configurable con `--save-interval`)
+
+## Tecnologias
+
+- Python 3.10+ / OpenCV / Ultralytics YOLOv8n
+- Modelo PPE preentrenado (mAP@0.50: 0.744) — corre en CPU, no requiere GPU
+- Compatible con webcam, videos y camaras RTSP
+
+## Estructura
 
 ```
 SafeVision/
-├── src/          # Código fuente
-├── models/       # Modelos entrenados (.pt)
-├── data/         # Dataset (imágenes + etiquetas)
-├── docs/         # Documentación
-├── tests/        # Pruebas
-└── requirements.txt
-```
-
-## Instalación
-
-```bash
-git clone https://github.com/TU_USUARIO/SafeVision.git
-cd SafeVision
-pip install -r requirements.txt
-```
-
-## Uso
-
-```bash
-python src/main.py --source 0        # webcam
-python src/main.py --source video.mp4
+├── src/main.py    # App de deteccion
+├── models/        # Modelos YOLO (.pt)
+├── data/          # Videos de prueba
+├── violations/    # Capturas de infracciones (auto)
+├── docs/          # Documentacion
+└── tests/
 ```
 
 ## Roadmap
 
-- [ ] Detección con modelo preentrenado (COCO)
-- [ ] Entrenar modelo con dataset de EPP
-- [ ] Alertas sonoras / notificaciones
-- [ ] Panel de monitoreo (dashboard)
-- [ ] Guardar evidencia (capturas de infracciones)
+- [x] MVP: deteccion en tiempo real (webcam/video)
+- [ ] Multiples camaras RTSP con hilos
+- [ ] Alertas por Telegram
+- [ ] Registro de infracciones (SQLite)
+- [ ] Dashboard web (FastAPI)
+- [ ] Modelo propio entrenado con datos de la fabrica
