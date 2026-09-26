@@ -19,16 +19,34 @@ ORANGE = (0, 140, 255)
 WHITE = (255, 255, 255)
 
 VIOLATION_CLASSES = {"NO-Hardhat", "NO-Safety Vest"}
+OK_CLASSES = {"Hardhat", "Safety Vest"}
+PERSON_CLASSES = {"Person"}
+
+# Confianza minima para que una infraccion dispare alerta/captura
+ALERT_CONF = 0.45
+# Area minima del box (fraccion del frame) para ignorar detecciones diminutas
+MIN_BOX_AREA = 0.003
+# Frames consecutivos con infraccion antes de alertar (evita falsos avisos)
+PERSISTENCE = 3
+
+
+def draw_label(frame, text, x, y, color):
+    """Etiqueta con fondo solido para que siempre se lea."""
+    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+    y = max(y, th + 6)
+    cv2.rectangle(frame, (x, y - th - 6), (x + tw + 4, y), color, -1)
+    cv2.putText(frame, text, (x + 2, y - 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 2)
 
 
 def draw_hud(frame, ok_count, violations, fps):
-    h = frame.shape[0]
     color = GREEN if violations == 0 else RED
     cv2.rectangle(frame, (0, 0), (frame.shape[1], 34), (30, 30, 30), -1)
     cv2.putText(frame, f"SafeVision  |  FPS: {fps:.1f}", (10, 24),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, WHITE, 2)
-    cv2.putText(frame, f"OK: {ok_count}  Infracciones: {violations}",
-                (frame.shape[1] - 320, 24),
+    text = f"OK: {ok_count}  Infracciones: {violations}"
+    (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+    cv2.putText(frame, text, (frame.shape[1] - tw - 10, 24),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
 
@@ -38,36 +56,43 @@ def save_violation(frame, detail):
     path = os.path.join(VIOLATIONS_DIR, f"violation_{ts}.jpg")
     cv2.imwrite(path, frame)
     print(f"[ALERTA] {detail} -> captura guardada en {path}")
+    return path
 
 
 def annotate_boxes(frame, results, model_names):
     ok_count = 0
     violation_count = 0
     persons = 0
+    h, w = frame.shape[:2]
+    min_area = MIN_BOX_AREA * h * w
 
-    for box in results.boxes:
-        cls_name = model_names[int(box.cls)]
-        conf = float(box.conf)
-        x1, y1, x2, y2 = map(int, box.xyxy[0])
+    # Personas primero (caja grande), EPP despues (etiquetas dentro de su caja)
+    for pass_name in ("person", "ppe"):
+        for box in results.boxes:
+            cls_name = model_names[int(box.cls)]
+            conf = float(box.conf)
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            if (x2 - x1) * (y2 - y1) < min_area:
+                continue
 
-        if cls_name == "Person":
-            persons += 1
-            color, label = ORANGE, f"Persona {conf:.0%}"
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, label, (x1, y1 - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-        elif cls_name in ("Hardhat", "Safety Vest"):
-            ok_count += 1
-            color, label = GREEN, f"{cls_name} {conf:.0%}"
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, label, (x1, y1 - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-        elif cls_name in VIOLATION_CLASSES:
-            violation_count += 1
-            color, label = RED, f"{cls_name} {conf:.0%}"
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, label, (x1, y1 - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            if pass_name == "person":
+                if cls_name in PERSON_CLASSES:
+                    persons += 1
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), ORANGE, 2)
+                    draw_label(frame, f"Persona {conf:.0%}", x1, y1 - 4, ORANGE)
+            else:
+                if cls_name in OK_CLASSES:
+                    ok_count += 1
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), GREEN, 2)
+                    draw_label(frame, f"{cls_name} {conf:.0%}", x1, y1 + 16, GREEN)
+                elif cls_name in VIOLATION_CLASSES:
+                    strong = conf >= ALERT_CONF
+                    color = RED if strong else (0, 120, 180)
+                    if strong:
+                        violation_count += 1
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                    mark = "" if strong else " ?"
+                    draw_label(frame, f"{cls_name}{mark} {conf:.0%}", x1, y1 + 16, color)
 
     return ok_count, violation_count, persons
 
@@ -85,12 +110,22 @@ def run(source, conf_threshold, save_interval):
         cap = cv2.VideoCapture(source)
 
     if not cap.isOpened():
-        raise SystemExit(f"No se pudo abrir la fuente de video: {source}")
+        raise SystemExit(
+            f"No se pudo abrir la fuente: {source}\n"
+            "  - Webcam: prueba --source 1 o cierra apps que la usen\n"
+            "  - Video: verifica que la ruta exista\n"
+            "  - RTSP: revisa usuario/contraseña/IP"
+        )
 
     source_is_camera = source.isdigit()
+    is_video_file = not source_is_camera and not str(source).lower().startswith("rtsp")
     last_save = 0.0
     fps = 0.0
     prev_time = time.time()
+    frame_skip = 2 if is_video_file else 1  # en videos procesar 1 de cada 2 frames (CPU)
+    frame_idx = 0
+    last_results = None
+    violation_streak = 0
 
     print("[SafeVision] Corriendo. Presiona 'q' para salir.")
 
@@ -100,16 +135,22 @@ def run(source, conf_threshold, save_interval):
             print("[SafeVision] Fin del video/fuente.")
             break
 
-        results = model(frame, conf=conf_threshold, verbose=False)[0]
+        frame_idx += 1
+        if frame_idx % frame_skip == 0:
+            last_results = model(frame, conf=conf_threshold, verbose=False)[0]
+        results = last_results if last_results is not None else model(frame, conf=conf_threshold, verbose=False)[0]
         ok_count, viol_count, persons = annotate_boxes(frame, results, names)
 
-        if viol_count > 0 and time.time() - last_save > save_interval:
+        # La infraccion debe persistir varios frames para alertar
+        violation_streak = violation_streak + 1 if viol_count > 0 else 0
+
+        if viol_count > 0 and violation_streak >= PERSISTENCE and time.time() - last_save > save_interval:
             detail = ", ".join(
-                names[int(b.cls)] for b in results.boxes
-                if names[int(b.cls)] in VIOLATION_CLASSES
+                f"{names[int(b.cls)]} {float(b.conf):.0%}"
+                for b in results.boxes
+                if names[int(b.cls)] in VIOLATION_CLASSES and float(b.conf) >= ALERT_CONF
             )
-            save_violation(frame, detail)
-            path = os.path.join(VIOLATIONS_DIR, sorted(os.listdir(VIOLATIONS_DIR))[-1])
+            path = save_violation(frame, detail)
             send_alert(path, f"⚠️ SafeVision — Infracción detectada: {detail}")
             last_save = time.time()
 
@@ -131,7 +172,7 @@ def main():
     parser = argparse.ArgumentParser(description="SafeVision - Deteccion de EPP")
     parser.add_argument("--source", default="0",
                         help="0/1 webcam, ruta de video, o URL RTSP")
-    parser.add_argument("--conf", type=float, default=0.4,
+    parser.add_argument("--conf", type=float, default=0.3,
                         help="Umbral de confianza (0-1)")
     parser.add_argument("--save-interval", type=float, default=5.0,
                         help="Segundos minimos entre capturas de infraccion")
