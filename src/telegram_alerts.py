@@ -77,7 +77,7 @@ def send_photo(path, caption=""):
 
 
 def alert(violation_path, detail, frame=None):
-    caption = f"⚠️ OjoSafe: {detail}\n{violation_path}"
+    caption = f"⚠️ OjoSafe: {detail}"
     ok = send_photo(violation_path, caption)
     if not ok:
         send_message(caption)

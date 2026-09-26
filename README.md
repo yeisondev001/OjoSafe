@@ -14,6 +14,7 @@ python -m venv venv
 
 # 3. Ejecutar
 .\venv\Scripts\python.exe src\main.py --source 0          # webcam
+.\venv\Scripts\python.exe src\main.py --source 0 --solo-casco  # webcam, solo revisa el casco (demo)
 .\venv\Scripts\python.exe src\main.py --source video.mp4  # video de fabrica
 .\venv\Scripts\python.exe src\main.py --source rtsp://usuario:pass@ip/stream  # camara IP (Fase 2)
 ```
