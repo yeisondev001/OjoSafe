@@ -44,8 +44,10 @@ LABELS = {
 ALERT_CONF = 0.45
 # Area minima del box (fraccion del frame) para ignorar detecciones diminutas
 MIN_BOX_AREA = 0.003
-# Frames consecutivos con infraccion antes de alertar (evita falsos avisos)
-PERSISTENCE = 3
+# La infraccion debe mantenerse este tiempo antes de generar una alerta.
+ALERT_DELAY_SECONDS = 5.0
+# Tolerancia a detecciones intermitentes del modelo antes de reiniciar el evento.
+VIOLATION_GAP_SECONDS = 0.75
 
 
 def label_scale(frame):
@@ -139,9 +141,9 @@ def fit_to_window(frame, window_name):
     )
 
 
-def save_violation(frame, detail):
+def save_violation(frame, detail, occurred_at):
     os.makedirs(VIOLATIONS_DIR, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = occurred_at.strftime("%Y%m%d_%H%M%S")
     path = os.path.join(VIOLATIONS_DIR, f"violation_{ts}.jpg")
     cv2.imwrite(path, frame)
     print(f"[ALERTA] {detail} -> captura guardada en {path}")
@@ -220,11 +222,12 @@ def run(source, conf_threshold, save_interval, solo_casco=False):
     source_is_camera = source.isdigit()
     is_video_file = not source_is_camera and not str(source).lower().startswith("rtsp")
     fps = 0.0
-    prev_time = time.time()
+    prev_time = time.monotonic()
     frame_skip = 2  # procesar 1 de cada 2 frames (CPU sin GPU)
     frame_idx = 0
     last_results = None
-    violation_streak = 0
+    violation_started_at = None
+    violation_detected_at = None
     last_violation_time = 0.0
     can_alert = True  # 1 alerta por episodio de infraccion
 
@@ -242,26 +245,34 @@ def run(source, conf_threshold, save_interval, solo_casco=False):
         results = last_results if last_results is not None else model(frame, conf=conf_threshold, verbose=False)[0]
         ok_count, viol_count, persons = annotate_boxes(frame, results, names, ignore)
 
-        # La infraccion debe persistir varios frames para alertar
-        now = time.time()
+        # Esperar cinco segundos de infraccion antes de guardar/enviar evidencia.
+        now = time.monotonic()
         if viol_count > 0:
-            violation_streak += 1
+            if violation_started_at is None:
+                violation_started_at = now
+                violation_detected_at = datetime.now()
             last_violation_time = now
         else:
-            violation_streak = 0
+            if (violation_started_at is not None
+                    and now - last_violation_time > VIOLATION_GAP_SECONDS):
+                violation_started_at = None
+                violation_detected_at = None
             # El episodio termina cuando estuvo limpio un tiempo prolongado
             if now - last_violation_time > save_interval:
                 can_alert = True
 
-        if viol_count > 0 and violation_streak >= PERSISTENCE and can_alert:
+        if (viol_count > 0 and can_alert and violation_started_at is not None
+                and now - violation_started_at >= ALERT_DELAY_SECONDS):
+            occurred_at = violation_detected_at or datetime.now()
             detail = ", ".join(
                 f"{LABELS[names[int(b.cls)]]} {float(b.conf):.0%}"
                 for b in results.boxes
                 if names[int(b.cls)] in VIOLATION_CLASSES - ignore and float(b.conf) >= ALERT_CONF
             )
-            path = save_violation(frame, detail)
-            log_violation(detail, path, source)
-            send_alert(path, f"Infracción detectada: {detail}")
+            path = save_violation(frame, detail, occurred_at)
+            log_violation(detail, path, source, occurred_at)
+            timestamp = occurred_at.strftime("%d/%m/%Y %H:%M:%S")
+            send_alert(path, f"Infracción detectada: {detail}\nFecha/hora: {timestamp}")
             can_alert = False
         fps = 0.9 * fps + 0.1 * (1.0 / max(now - prev_time, 1e-6))
         prev_time = now
@@ -284,7 +295,7 @@ def main():
     parser.add_argument("--conf", type=float, default=0.3,
                         help="Umbral de confianza (0-1)")
     parser.add_argument("--save-interval", type=float, default=5.0,
-                        help="Segundos minimos entre capturas de infraccion")
+                        help="Segundos sin infracciones para permitir una nueva alerta")
     parser.add_argument("--solo-casco", action="store_true",
                         help="Revisar solo el casco (ignora el chaleco)")
     args = parser.parse_args()

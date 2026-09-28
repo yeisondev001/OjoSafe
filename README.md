@@ -39,7 +39,9 @@ Controles: **`q`** para salir.
 | 🔴 | NO-Hardhat / NO-Safety Vest | **Infraccion** -> alerta + captura |
 
 - HUD con FPS y contadores OK / infracciones
-- Guarda capturas automaticas en `violations/` (una cada 5s por defecto, configurable con `--save-interval`)
+- Espera 5 segundos continuos de infraccion antes de guardar y enviar una alerta.
+- La alerta de Telegram y el registro SQLite incluyen la fecha/hora en que comenzo la infraccion.
+- Envia una alerta por episodio; se rearma tras 5 segundos sin infracciones (configurable con `--save-interval`).
 
 ## Tecnologias
 

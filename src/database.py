@@ -25,14 +25,15 @@ def _connect():
     return conn
 
 
-def log_violation(detail, image_path, source=""):
+def log_violation(detail, image_path, source="", occurred_at=None):
     """detail: ej 'NO-Safety Vest 69%'. Inserta la infraccion en la BD."""
     conn = _connect()
     tipo, _, conf = detail.rpartition(" ")
     conf = float(conf.rstrip("%")) / 100 if conf else 0.0
+    fecha = (occurred_at or datetime.now()).isoformat(timespec="seconds")
     conn.execute(
         "INSERT INTO violations (fecha, tipo, confianza, fuente, imagen) VALUES (?, ?, ?, ?, ?)",
-        (datetime.now().isoformat(timespec="seconds"), tipo or detail, conf, str(source), image_path),
+        (fecha, tipo or detail, conf, str(source), image_path),
     )
     conn.commit()
     conn.close()
