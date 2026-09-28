@@ -22,6 +22,7 @@ YELLOW = (0, 200, 255)
 WHITE = (255, 255, 255)
 DARK = (30, 30, 30)
 FONT = cv2.FONT_HERSHEY_DUPLEX
+WINDOW_NAME = "OjoSafe - Deteccion de EPP"
 
 VIOLATION_CLASSES = {"NO-Hardhat", "NO-Safety Vest"}
 OK_CLASSES = {"Hardhat", "Safety Vest"}
@@ -109,6 +110,35 @@ def draw_compliance(frame, ok_count, violations):
         cv2.rectangle(frame, (x0, y0), (x0 + int((x1 - x0) * pct), y1), color, -1)
 
 
+def fit_to_window(frame, window_name):
+    """Escala el video al area visible de la ventana sin deformarlo."""
+    try:
+        _, _, target_w, target_h = cv2.getWindowImageRect(window_name)
+    except cv2.error:
+        return frame
+
+    if target_w <= 0 or target_h <= 0:
+        return frame
+
+    h, w = frame.shape[:2]
+    scale = min(target_w / w, target_h / h)
+    resized_w = max(1, int(w * scale))
+    resized_h = max(1, int(h * scale))
+    resized = cv2.resize(frame, (resized_w, resized_h), interpolation=cv2.INTER_LINEAR)
+
+    pad_w = target_w - resized_w
+    pad_h = target_h - resized_h
+    return cv2.copyMakeBorder(
+        resized,
+        pad_h // 2,
+        pad_h - pad_h // 2,
+        pad_w // 2,
+        pad_w - pad_w // 2,
+        cv2.BORDER_CONSTANT,
+        value=DARK,
+    )
+
+
 def save_violation(frame, detail):
     os.makedirs(VIOLATIONS_DIR, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -184,6 +214,9 @@ def run(source, conf_threshold, save_interval, solo_casco=False):
             "  - RTSP: revisa usuario/contraseña/IP"
         )
 
+    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(WINDOW_NAME, 1280, 720)
+
     source_is_camera = source.isdigit()
     is_video_file = not source_is_camera and not str(source).lower().startswith("rtsp")
     fps = 0.0
@@ -235,7 +268,7 @@ def run(source, conf_threshold, save_interval, solo_casco=False):
 
         draw_hud(frame, fps, solo_casco)
         draw_compliance(frame, ok_count, viol_count)
-        cv2.imshow("OjoSafe - Deteccion de EPP", frame)
+        cv2.imshow(WINDOW_NAME, fit_to_window(frame, WINDOW_NAME))
 
         if cv2.waitKey(1 if source_is_camera else 30) & 0xFF == ord("q"):
             break
