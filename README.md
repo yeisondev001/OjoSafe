@@ -2,6 +2,12 @@
 
 Sistema de visión por computadora para seguridad industrial: detecta si los trabajadores usan su **EPP** (Equipo de Protección Personal): casco, chaleco, etc.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="OjoSafe detecta la falta de casco, marca cumplimiento al ponérselo y envía la alerta a Telegram" width="420">
+</p>
+
+<p align="center"><a href="docs/demo.mp4">Ver el video de la demo</a></p>
+
 ## Demo (MVP)
 
 ```powershell
